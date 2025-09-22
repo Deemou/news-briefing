@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 
 export default function Home() {
   const [text, setText] = useState("");
+  const [summary, setSummary] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +19,13 @@ export default function Home() {
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(e.target.value);
+      const v = e.target.value;
+      // prevent input exceeding maxLen
+      if (v.length > maxLen) {
+        setText(v.slice(0, maxLen));
+      } else {
+        setText(v);
+      }
       if (error) setError(null);
     },
     [error]
@@ -30,16 +37,29 @@ export default function Home() {
       if (!canSubmit) return;
       setIsSubmitting(true);
       setError(null);
+      setSummary(null);
 
       try {
-        console.log("submit text length=", length);
+        const res = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data?.error || "요청에 실패했어요.");
+          return;
+        }
+
+        setSummary(data.summary);
       } catch (err: any) {
         setError(err?.message ?? "요청에 실패했어요.");
       } finally {
         setIsSubmitting(false);
       }
     },
-    [canSubmit, length]
+    [canSubmit, text]
   );
 
   return (
@@ -86,7 +106,10 @@ export default function Home() {
           </button>
           <button
             type="button"
-            onClick={() => setText("")}
+            onClick={() => {
+              setText("");
+              setSummary(null);
+            }}
             className="rounded border px-4 py-2"
             disabled={isSubmitting || length === 0}
           >
@@ -94,6 +117,35 @@ export default function Home() {
           </button>
         </div>
       </form>
+
+      {summary && (
+        <section className="mt-6">
+          <h2 className="text-lg font-medium mb-2">요약 결과</h2>
+          <article className="rounded border p-4 shadow-sm bg-white">
+            <p className="whitespace-pre-wrap">{summary}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                className="rounded bg-gray-800 px-3 py-1 text-sm text-white"
+                onClick={() => {
+                  navigator.clipboard?.writeText(summary);
+                }}
+              >
+                복사
+              </button>
+              <button
+                className="rounded border px-3 py-1 text-sm"
+                onClick={() => {
+                  // replace textarea with summary (for editing)
+                  setText(summary);
+                  setSummary(null);
+                }}
+              >
+                텍스트로 가져오기
+              </button>
+            </div>
+          </article>
+        </section>
+      )}
     </main>
   );
 }
