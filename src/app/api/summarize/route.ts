@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GPT_NEWS_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: "서버에 API 키가 설정되어 있지 않습니다." },
