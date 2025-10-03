@@ -165,15 +165,6 @@ export default function Home() {
               >
                 복사
               </button>
-              <button
-                className="rounded border px-3 py-1 text-sm"
-                onClick={() => {
-                  setText(summary);
-                  setSummary(null);
-                }}
-              >
-                텍스트로 가져오기
-              </button>
             </div>
           </article>
         </section>
