@@ -1,31 +1,43 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { isValidHttpUrl } from "@/lib/validators/url";
+
+const minLen = 50;
+const maxLen = 4000;
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const minLen = 50;
-  const maxLen = 4000;
+  const tlen = text.trim().length;
+  const urlMode = !!url.trim();
+  const urlValid = !urlMode || isValidHttpUrl(url);
+  const isTooShort = !urlMode && tlen > 0 && tlen < minLen;
+  const isTooLong = !urlMode && tlen > maxLen;
 
-  const length = text.trim().length;
-  const isTooShort = length > 0 && length < minLen;
-  const isTooLong = length > maxLen;
+  const canSubmit =
+    (urlMode ? urlValid : tlen >= minLen && tlen <= maxLen) && !isSubmitting;
 
-  const canSubmit = length >= minLen && length <= maxLen && !isSubmitting;
+  const onUrlChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+      setUrl(v);
+      if (!v.trim()) setUrlError(null);
+      else setUrlError(isValidHttpUrl(v) ? null : "유효한 URL이 아닙니다.");
+      if (error) setError(null);
+    },
+    [error]
+  );
 
-  const onChange = useCallback(
+  const onTextChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const v = e.target.value;
-      // prevent input exceeding maxLen
-      if (v.length > maxLen) {
-        setText(v.slice(0, maxLen));
-      } else {
-        setText(v);
-      }
+      setText(v.length > maxLen ? v.slice(0, maxLen) : v);
       if (error) setError(null);
     },
     [error]
@@ -35,15 +47,20 @@ export default function Home() {
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!canSubmit) return;
+
       setIsSubmitting(true);
       setError(null);
       setSummary(null);
 
       try {
+        const payload: { url?: string; text?: string } = urlMode
+          ? { url: url.trim() }
+          : { text: text.trim() };
+
         const res = await fetch("/api/summarize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
@@ -51,7 +68,6 @@ export default function Home() {
           setError(data?.error || "요청에 실패했어요.");
           return;
         }
-
         setSummary(data.summary);
       } catch (err: any) {
         setError(err?.message ?? "요청에 실패했어요.");
@@ -59,35 +75,53 @@ export default function Home() {
         setIsSubmitting(false);
       }
     },
-    [canSubmit, text]
+    [canSubmit, urlMode, url, text]
   );
 
   return (
     <main className="container mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold mb-4">뉴스 요약</h1>
 
-      <form onSubmit={onSubmit} className="space-y-3" aria-describedby="helper">
-        <label htmlFor="input" className="block text-sm font-medium">
-          본문 붙여넣기
-        </label>
-
-        <textarea
-          id="input"
-          value={text}
-          onChange={onChange}
-          rows={10}
-          placeholder="요약할 텍스트를 붙여넣으세요."
-          className="w-full rounded border p-3 outline-none focus:ring"
-          aria-invalid={isTooShort || isTooLong}
-          aria-describedby="helper counter"
-        />
-
-        <div id="counter" className="text-xs text-gray-500">
-          {length} / {maxLen}
+      <form onSubmit={onSubmit} className="space-y-4" aria-describedby="helper">
+        <div className="space-y-2">
+          <label htmlFor="url" className="block text-sm font-medium">
+            URL
+          </label>
+          <input
+            id="url"
+            type="url"
+            inputMode="url"
+            value={url}
+            onChange={onUrlChange}
+            placeholder="https://example.com/news/..."
+            className="w-full rounded border p-3 outline-none focus:ring"
+            aria-invalid={!!urlError}
+          />
+          {urlError && (
+            <p className="text-xs text-red-600" role="alert">
+              {urlError}
+            </p>
+          )}
         </div>
 
-        <div id="helper" className="text-xs">
-          최소 {minLen}자 이상 입력하면 요약할 수 있어요.
+        <div className="space-y-2">
+          <label htmlFor="input" className="block text-sm font-medium">
+            본문
+          </label>
+          <textarea
+            id="input"
+            value={text}
+            onChange={onTextChange}
+            rows={10}
+            placeholder="URL을 사용할 수 없는 경우, 텍스트를 붙여 넣으세요."
+            className="w-full rounded border p-3 outline-none focus:ring"
+            aria-invalid={isTooShort || isTooLong}
+            aria-describedby="helper counter"
+            disabled={urlMode}
+          />
+          <div id="counter" className="text-xs text-gray-500">
+            {tlen} / {maxLen} (최소 {minLen}자 이상)
+          </div>
         </div>
 
         {error && (
@@ -107,11 +141,13 @@ export default function Home() {
           <button
             type="button"
             onClick={() => {
+              setUrl("");
               setText("");
               setSummary(null);
+              setUrlError(null);
             }}
             className="rounded border px-4 py-2"
-            disabled={isSubmitting || length === 0}
+            disabled={isSubmitting || (!tlen && !url)}
           >
             지우기
           </button>
@@ -126,16 +162,13 @@ export default function Home() {
             <div className="mt-3 flex gap-2">
               <button
                 className="rounded bg-gray-800 px-3 py-1 text-sm text-white"
-                onClick={() => {
-                  navigator.clipboard?.writeText(summary);
-                }}
+                onClick={() => navigator.clipboard?.writeText(summary)}
               >
                 복사
               </button>
               <button
                 className="rounded border px-3 py-1 text-sm"
                 onClick={() => {
-                  // replace textarea with summary (for editing)
                   setText(summary);
                   setSummary(null);
                 }}
