@@ -143,7 +143,6 @@ export default function Home() {
             onClick={() => {
               setUrl("");
               setText("");
-              setSummary(null);
               setUrlError(null);
             }}
             className="rounded border px-4 py-2"
