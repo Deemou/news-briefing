@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 import { callNewsExtractByUrl } from "@/lib/news-extract-api";
 import { isValidHttpUrl } from "@/lib/validators/url";
+
+const openai = new OpenAI({ apiKey: process.env.GPT_NEWS_API_KEY });
 
 export const POST = async (req: Request) => {
   try {
@@ -9,7 +12,6 @@ export const POST = async (req: Request) => {
     let baseText = "";
 
     if (isValidHttpUrl(url)) {
-      // URL 경로: 추출 API 호출, 실패 시 즉시 에러
       try {
         const extracted = await callNewsExtractByUrl(url.trim(), {
           timeoutMs: 20000,
@@ -57,7 +59,7 @@ export const POST = async (req: Request) => {
       baseText = t;
     }
 
-    // OpenAI 호출
+    // OpenAI 호출 (SDK)
     const apiKey = process.env.GPT_NEWS_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -67,46 +69,29 @@ export const POST = async (req: Request) => {
     }
 
     const systemPrompt =
-      "너는 한국어 뉴스 요약 전문가다. 정보 왜곡 없이 핵심만 간결하게 정리한다.";
+      "너는 한국어 뉴스 요약 전문가다. 추측/감탄/권유/메타 설명은 금지한다.";
     const userPrompt = [
-      "다음 뉴스 기사를 3~4문장, 350자 내외로 간결하게 요약해라.",
+      "다음 뉴스 기사를 350자 이내로 간결하게 요약해라.",
       "불필요한 수식어/중복 제거, 핵심 사실 유지.",
       "응답은 요약문만:",
       "",
       baseText,
     ].join("\n");
 
-    const res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        input: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.2,
-        max_output_tokens: 220,
-      }),
+    const res = await openai.responses.create({
+      model: "gpt-5-nano",
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      reasoning: { effort: "minimal" },
+      service_tier: "flex",
     });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error("OpenAI error:", errText);
-      return NextResponse.json(
-        { error: "요약 생성 요청이 실패했습니다. 잠시 후 다시 시도하세요." },
-        { status: res.status }
-      );
-    }
+    console.log(res);
 
-    const data = await res.json();
-    const summary =
-      data.output_text ?? data?.output?.[0]?.content?.[0]?.text ?? null;
-
-    if (!summary || typeof summary !== "string") {
+    const summary = res.output_text?.trim?.() ?? "";
+    if (!summary) {
       return NextResponse.json(
         { error: "요약을 생성하지 못했습니다." },
         { status: 500 }
