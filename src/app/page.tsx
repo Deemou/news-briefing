@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { isValidHttpUrl } from "@/lib/validators/url";
+import Button from "@/components/ui/Button";
 
 const minLen = 50;
 const maxLen = 4000;
@@ -134,25 +135,27 @@ export default function Home() {
         )}
 
         <div className="flex gap-2">
-          <button
+          <Button
             type="submit"
-            className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+            variant="primary"
             disabled={!canSubmit}
+            aria-busy={isSubmitting}
           >
             {isSubmitting ? "요약 중…" : "요약"}
-          </button>
-          <button
+          </Button>
+
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => {
               setUrl("");
               setText("");
               setUrlError(null);
             }}
-            className="rounded border px-4 py-2"
             disabled={isSubmitting || (!tlen && !url)}
           >
             지우기
-          </button>
+          </Button>
         </div>
       </form>
 
