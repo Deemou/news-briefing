@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
+/* dark 변형을 html.dark로 매핑 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 색상 토큰 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --hover-bg: #f3f4f6;
+  --fg: #111827; /* gray-900 */
+  --card-bg: #ffffff;
+  --card-fg: #111827;
+  --border: #e5e7eb; /* gray-200 */
+  --primary: #1d4ed8; /* blue-700 */
+  --primary-hover: #1e40af; /* blue-800 */
+  --primary-contrast: #ffffff;
+}
+.dark {
+  --bg: #0b1220; /* slate-950 */
+  --hover-bg: #1f2937;
+  --fg: #f3f4f6; /* gray-100 */
+  --card-bg: #0f172a; /* slate-900 */
+  --card-fg: #ffffff;
+  --border: #334155; /* slate-700 */
+  --primary: #f59e0b; /* amber-500 */
+  --primary-hover: #d97706; /* amber-600 */
+  --primary-contrast: #0b1220;
 }
 
+/* Tailwind v4 theme bridge (선택사항: 폰트 변수 등) */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* 전역 배경/문자색 */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* 포커스 가시화 */
+:focus-visible {
+  outline: 2px solid #eab308;
+  outline-offset: 2px;
+}
+
+/* 재사용 버튼 */
+.btn-primary {
+  @apply px-4 py-2 rounded font-semibold transition-colors duration-150;
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.btn-primary:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.btn-ghost {
+  @apply px-4 py-2 rounded font-medium border transition-colors duration-150;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--fg);
+}
+.btn-ghost:hover:not(:disabled) {
+  @apply bg-gray-50 dark:bg-gray-800;
+}
+
+/* 입력/카드 */
+.input {
+  @apply w-full rounded border p-3 transition-shadow;
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+.card {
+  @apply rounded-lg border p-4 shadow-sm;
+  background: var(--card-bg);
+  color: var(--card-fg);
+  border-color: var(--border);
+}
+
+/* 모션 축소 선호 시 전환 최소화(선택) */
+@media (prefers-reduced-motion: reduce) {
+  .transition-colors,
+  .transition-transform,
+  .transition-opacity,
+  .transition-all {
+    transition: none !important;
+  }
 }

@@ -79,7 +79,7 @@ export default function Home() {
   );
 
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-8">
+    <>
       <h1 className="text-2xl font-semibold mb-4">뉴스 요약</h1>
 
       <form onSubmit={onSubmit} className="space-y-4" aria-describedby="helper">
@@ -119,7 +119,10 @@ export default function Home() {
             aria-describedby="helper counter"
             disabled={urlMode}
           />
-          <div id="counter" className="text-xs text-gray-500">
+          <div
+            id="counter"
+            className="text-xs text-gray-600 dark:text-gray-300"
+          >
             {tlen} / {maxLen} (최소 {minLen}자 이상)
           </div>
         </div>
@@ -169,6 +172,6 @@ export default function Home() {
           </article>
         </section>
       )}
-    </main>
+    </>
   );
 }
