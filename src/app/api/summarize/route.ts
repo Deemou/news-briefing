@@ -14,7 +14,7 @@ export const POST = async (req: Request) => {
     if (isValidHttpUrl(url)) {
       try {
         const extracted = await callNewsExtractByUrl(url.trim(), {
-          timeoutMs: 20000,
+          timeoutMs: 60000,
           retries: 2,
         });
         console.log(extracted);
