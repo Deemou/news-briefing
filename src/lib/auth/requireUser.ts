@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { redirect } from "next/navigation";
 
 export async function requireUser(returnTo = "/") {
   const res = NextResponse.next();
@@ -21,22 +22,11 @@ export async function requireUser(returnTo = "/") {
   const { data, error } = await sb.auth.getUser();
 
   if (error || !data.user) {
-    const origin = process.env.SITE_URL!;
-    const loginUrl = new URL("/login", origin);
-    loginUrl.searchParams.set("state", returnTo || "/");
-
-    const redirectRes = NextResponse.redirect(loginUrl);
-    res.cookies
-      .getAll()
-      .forEach((c) => redirectRes.cookies.set(c.name, c.value));
-
-    return {
-      response: redirectRes,
-      redirected: true,
-      sb: undefined,
-      user: null,
-    };
+    const path = returnTo;
+    const loginUrl = new URL("/login", process.env.SITE_URL);
+    loginUrl.searchParams.set("state", path);
+    redirect(loginUrl.pathname + "?" + loginUrl.searchParams.toString());
   }
 
-  return { response: res, redirected: false, sb, user: data.user };
+  return;
 }

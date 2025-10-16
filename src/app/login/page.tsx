@@ -7,8 +7,7 @@ export default async function Page({
   searchParams: { state: string };
 }) {
   const { state } = (await searchParams) ?? {};
-  const { response, redirected } = await requireAnonymous(state);
-  if (redirected) return response;
+  await requireAnonymous(state);
 
   return <LoginPage />;
 }
