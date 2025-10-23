@@ -1,5 +1,5 @@
-"use client";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import AvatarMenu from "@/components/layout/AvatarMenu";
 
 export default function Header() {
   return (
@@ -10,6 +10,7 @@ export default function Header() {
         </a>
         <nav className="flex items-center gap-2">
           <ThemeToggle />
+          <AvatarMenu />
         </nav>
       </div>
     </header>
