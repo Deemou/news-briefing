@@ -166,11 +166,11 @@ export default function SummaryPage() {
       {summary && (
         <section className="mt-6">
           <h2 className="text-lg font-medium mb-2">요약 결과</h2>
-          <article className="rounded border p-4 shadow-sm bg-white">
+          <article className="card">
             <p className="whitespace-pre-wrap">{summary}</p>
             <div className="mt-3 flex gap-2">
               <button
-                className="rounded bg-gray-800 px-3 py-1 text-sm text-white"
+                className="rounded px-3 py-1 text-sm font-medium transition-colors bg-gray-800 text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600"
                 onClick={() => navigator.clipboard?.writeText(summary)}
               >
                 복사
