@@ -43,6 +43,8 @@ export async function GET(req: Request) {
       .eq("id", u.id)
       .maybeSingle();
 
+    console.log(existingUser);
+
     if (readErr) {
       console.error("[auth/callback] users read failed", {
         userId: u.id,

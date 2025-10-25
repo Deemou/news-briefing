@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { callNewsExtractByUrl } from "@/lib/news-extract-api";
 import { isValidHttpUrl } from "@/lib/validators/url";
+import { createSbServer } from "@/lib/supabase/server";
+import type { SummaryInsert, UserSummaryInsert } from "@/types/db";
 
 const openai = new OpenAI({ apiKey: process.env.GPT_NEWS_API_KEY });
 
@@ -9,17 +11,48 @@ export const POST = async (req: Request) => {
   try {
     const { url, text } = await req.json();
 
-    let baseText = "";
+    const sb = createSbServer({ req });
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
+      );
+    }
+
+    let baseText = "";
+    let metadata: {
+      source_url: string | null;
+      site: string | null;
+      title: string | null;
+      published_at: string | null;
+    } = {
+      source_url: null,
+      site: null,
+      title: null,
+      published_at: null,
+    };
+
+    // URL 또는 텍스트 처리
     if (isValidHttpUrl(url)) {
       try {
         const extracted = await callNewsExtractByUrl(url.trim(), {
           timeoutMs: 60000,
           retries: 2,
         });
-        console.log(extracted);
-        baseText =
-          (typeof extracted?.text === "string" && extracted.text.trim()) || "";
+        console.log("Extracted:", extracted);
+
+        baseText = extracted.text?.trim() || "";
+
+        metadata = {
+          source_url: extracted.meta?.source || url.trim(),
+          site: extracted.meta?.site || null,
+          title: extracted.title || null,
+          published_at: extracted.meta?.published_at || null,
+        };
       } catch (e) {
         console.error("News Extract API call failed:", e);
         return NextResponse.json(
@@ -34,7 +67,7 @@ export const POST = async (req: Request) => {
         );
       }
     } else {
-      // 텍스트 경로
+      // 텍스트 직접 입력
       const minLen = 50;
       const maxLen = 4000;
       const t = typeof text === "string" ? text.trim() : "";
@@ -59,7 +92,7 @@ export const POST = async (req: Request) => {
       baseText = t;
     }
 
-    // OpenAI 호출 (SDK)
+    // OpenAI 요약 생성
     const apiKey = process.env.GPT_NEWS_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -88,7 +121,7 @@ export const POST = async (req: Request) => {
       service_tier: "flex",
     });
 
-    console.log(res);
+    console.log("OpenAI response:", res);
 
     const summary = res.output_text?.trim?.() ?? "";
     if (!summary) {
@@ -98,7 +131,51 @@ export const POST = async (req: Request) => {
       );
     }
 
-    return NextResponse.json({ summary: summary.trim().slice(0, 800) });
+    const finalSummary = summary.trim().slice(0, 800);
+
+    // DB 저장 (실패해도 요약은 반환)
+    try {
+      const summaryData: SummaryInsert = {
+        created_by: user.id,
+        source_url: metadata.source_url,
+        site: metadata.site,
+        title: metadata.title,
+        article_published_at: metadata.published_at,
+        article_text: baseText.slice(0, 10000),
+        summary_text: finalSummary,
+        generator_version: "v1",
+      };
+
+      const { data: summaryRow, error: summaryError } = await sb
+        .from("summaries")
+        .insert(summaryData)
+        .select("id")
+        .single();
+
+      if (summaryError || !summaryRow) {
+        console.error("Summary insert error:", summaryError);
+      } else {
+        // summary 저장 성공 시에만 관계 테이블 저장
+        const userSummaryData: UserSummaryInsert = {
+          user_id: user.id,
+          summary_id: summaryRow.id,
+          pinned: false,
+        };
+
+        const { error: userSummaryError } = await sb
+          .from("user_summaries")
+          .insert(userSummaryData);
+
+        if (userSummaryError) {
+          console.error("UserSummary insert error:", userSummaryError);
+        }
+      }
+    } catch (dbError: any) {
+      console.error("Database error:", dbError);
+    }
+
+    // 저장 성공/실패 무관하게 요약 반환
+    return NextResponse.json({ summary: finalSummary });
   } catch (err) {
     console.error("Route error:", err);
     return NextResponse.json(
