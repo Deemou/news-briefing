@@ -28,11 +28,9 @@ export default function AvatarMenu() {
         .select("nickname, avatar_url")
         .single();
       if (!mounted) return;
-      if (!error && data)
-        setUser({
-          nickname: data.nickname,
-          avatar_url: data.avatar_url,
-        });
+      if (!error && data) {
+        setUser({ nickname: data.nickname, avatar_url: data.avatar_url });
+      }
     })();
     return () => {
       mounted = false;
@@ -48,8 +46,9 @@ export default function AvatarMenu() {
       if (
         !menuRef.current.contains(e.target as Node) &&
         !btnRef.current.contains(e.target as Node)
-      )
+      ) {
         setOpen(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDoc);
@@ -104,6 +103,19 @@ export default function AvatarMenu() {
             {user.nickname}
           </div>
           <div className="h-px bg-(--border)" />
+
+          {/* 내 브리핑 이동 */}
+          <a
+            href="/briefings"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-(--hover-bg)"
+            onClick={() => setOpen(false)}
+          >
+            내 브리핑
+          </a>
+
+          <div className="h-px bg-(--border)" />
+
           <button
             type="button"
             role="menuitem"
