@@ -28,7 +28,7 @@ export default function Button({
       "text-white bg-blue-700 enabled:hover:bg-blue-800 " +
       "dark:text-[var(--bg)] dark:bg-amber-500 enabled:dark:hover:bg-amber-600",
     secondary:
-      "border text-[var(--fg)] bg-transparent enabled:hover:bg-(--hover-bg) " +
+      "border text-[var(--fg)] bg-transparent enabled:hover:bg-[var(--hover-bg)] " +
       "dark:border-gray-500 dark:text-gray-200 enabled:dark:hover:bg-gray-700",
   }[variant];
 

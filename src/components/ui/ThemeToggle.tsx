@@ -24,7 +24,7 @@ export default function ThemeToggle() {
       aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
       onClick={toggle}
       className="inline-flex h-9 w-9 items-center justify-center rounded-md
-                 hover:bg-(--hover-bg)"
+                 hover:bg-[var(--hover-bg)]"
     >
       {isDark ? (
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">

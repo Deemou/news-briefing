@@ -78,8 +78,6 @@ export default function AvatarMenu() {
         aria-expanded={open}
         aria-controls="user-menu"
         onClick={() => setOpen((v) => !v)}
-        className="grid h-9 w-9 items-center justify-center rounded-full hover:bg-(--hover-bg)
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) transition"
       >
         <Avatar
           src={user.avatar_url}
@@ -94,33 +92,36 @@ export default function AvatarMenu() {
           id="user-menu"
           role="menu"
           ref={menuRef}
-          className="absolute right-0 mt-2 w-48 rounded-md border border-(--border) bg-(--panel) shadow-md overflow-hidden"
+          className="
+            absolute right-0 mt-2 w-48 rounded-md
+            border border-[var(--border)]
+            bg-[var(--panel)]
+            text-[var(--card-fg)]
+            shadow-md overflow-hidden
+          "
         >
-          <div
-            className="px-3 py-2 text-sm text-(--foreground) select-none"
-            aria-hidden
-          >
+          <div className="px-3 py-2 text-sm select-none" aria-hidden>
             {user.nickname}
           </div>
-          <div className="h-px bg-(--border)" />
+          <div className="h-px bg-[var(--border)]" />
 
           {/* 내 브리핑 이동 */}
           <a
             href="/briefings"
             role="menuitem"
-            className="block w-full px-3 py-2 text-left text-sm hover:bg-(--hover-bg)"
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--hover-bg)]"
             onClick={() => setOpen(false)}
           >
             내 브리핑
           </a>
 
-          <div className="h-px bg-(--border)" />
+          <div className="h-px bg-[var(--border)]" />
 
           <button
             type="button"
             role="menuitem"
             onClick={logout}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-(--hover-bg)"
+            className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--hover-bg)]"
             aria-label="로그아웃"
           >
             로그아웃
