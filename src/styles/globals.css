@@ -27,7 +27,7 @@
 }
 
 /* 2) 다크 변형: html.dark 기반 */
-@custom-variant dark (&:where(.dark, .dark *) ); /* v4 클래스 전략 고정 [web:324][web:844] */
+@custom-variant dark (&:where(.dark, .dark *) ); /* v4 클래스 전략 고정 */
 
 /* 3) 디자인 토큰 */
 :root {
@@ -36,6 +36,7 @@
   --fg: #111827;
   --card-bg: #ffffff;
   --card-fg: #111827;
+  --panel: #ffffff;
   --border: #e5e7eb;
   --primary: #1d4ed8;
   --primary-hover: #1e40af;
@@ -47,6 +48,7 @@
   --fg: #f3f4f6;
   --card-bg: #0f172a;
   --card-fg: #ffffff;
+  --panel: #0b1220;
   --border: #475569; /* 대비↑ */
   --primary: #f59e0b;
   --primary-hover: #d97706;
