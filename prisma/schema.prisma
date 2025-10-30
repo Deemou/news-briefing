@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// users
+model User {
+  id            String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  nickname      String
+  email         String?  @unique(map: "users_email_unique_not_null")
+  avatar_url    String?
+  is_active     Boolean  @default(true)
+  locale        String?
+  last_login_at DateTime?
+  created_at    DateTime @default(dbgenerated("now()"))
+  updated_at    DateTime @default(dbgenerated("now()"))
+
+  // relations
+  providers     UserProvider[]
+  userSummaries UserSummary[]
+
+  @@map("users")
+}
+
+/// user_providers
+model UserProvider {
+  id             String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  user_id        String   @db.Uuid
+  provider       String
+  provider_user_id String
+  profile_json   Json?
+  linked_at      DateTime @default(dbgenerated("now()"))
+
+  // relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "user_providers_user_id_idx")
+  @@unique([provider, provider_user_id], map: "user_providers_unique_provider_uid")
+  @@map("user_providers")
+}
+
+/// summaries
+model Summary {
+  id               String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  source_url       String?
+  site             String?
+  title            String?
+  article_published_at DateTime?
+  content_hash     String
+  summary_text     String
+  generator_version String  @default("v1")
+  total_requests   BigInt   @default(0)
+  last_requested_at DateTime?
+  created_at       DateTime @default(dbgenerated("now()"))
+  updated_at       DateTime @default(dbgenerated("now()"))
+
+  // relations
+  userSummaries UserSummary[]
+
+  @@unique([source_url], map: "summaries_source_url_unique")
+  @@index([content_hash], map: "summaries_content_hash_idx")
+  @@map("summaries")
+}
+
+/// user_summaries
+model UserSummary {
+  id               String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  user_id          String   @db.Uuid
+  summary_id       String   @db.Uuid
+  pinned           Boolean  @default(false)
+  last_requested_at DateTime?
+  created_at       DateTime @default(dbgenerated("now()"))
+  updated_at       DateTime @default(dbgenerated("now()"))
+
+  // relations
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  summary Summary @relation(fields: [summary_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, summary_id])
+  @@index([user_id, created_at], map: "user_summaries_user_created_idx")
+  @@index([user_id, last_requested_at], map: "user_summaries_user_last_req_idx")
+  @@map("user_summaries")
+}

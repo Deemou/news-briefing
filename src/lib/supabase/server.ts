@@ -6,7 +6,9 @@ import type {
 import type { CookieOptionsWithName } from "@supabase/ssr";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const KEY_ = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
+const PUBLISHABLE_KEY = process.env
+  .NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
+const SECRET_KEY = process.env.SUPABASE_SECRET_KEY as string;
 
 type CreateOpts = {
   req: Request;
@@ -18,6 +20,7 @@ type CreateOpts = {
     }[]
   ) => void;
   clientOptions?: SupabaseClientOptions<"public">;
+  serviceRole?: boolean;
 };
 
 function parseAllCookies(req: Request): { name: string; value: string }[] {
@@ -30,9 +33,11 @@ function parseAllCookies(req: Request): { name: string; value: string }[] {
 }
 
 export function createSbServer(opts: CreateOpts): SupabaseClient {
-  const { req, setAll, clientOptions } = opts;
+  const { req, setAll, clientOptions, serviceRole } = opts;
 
-  return createServerClient(URL_, KEY_, {
+  const key = serviceRole ? SECRET_KEY : PUBLISHABLE_KEY;
+
+  return createServerClient(URL_, key, {
     ...(clientOptions ?? {}),
     cookies: {
       getAll: () => parseAllCookies(req),

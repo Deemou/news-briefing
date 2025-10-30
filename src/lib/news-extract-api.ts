@@ -6,20 +6,18 @@ const EXTRACT_API_KEY = process.env.NEWS_EXTRACT_API_KEY!;
 if (!EXTRACT_API_URL) throw new Error("NEWS_EXTRACT_API_URL missing");
 if (!EXTRACT_API_KEY) throw new Error("NEWS_EXTRACT_API_KEY missing");
 
-// 429/503 재시도: Retry-After 우선, 없으면 지수 백오프(지터)
 function jitter(ms: number) {
   const delta = Math.floor(ms * 0.2);
   return ms + Math.floor(Math.random() * delta);
 }
 
-// 실제 API 응답 명세에 맞춘 타입 정의
 export type ExtractResult = {
-  title: string;
+  title: string | null;
   text: string;
   meta: {
-    source: string;
-    published_at: string;
-    site: string;
+    source: string | null;
+    published_at: string | null;
+    site: string | null;
   };
 };
 
@@ -47,9 +45,7 @@ export async function callNewsExtractByUrl(
         cache: "no-store",
       });
 
-      if (res.ok) {
-        return (await res.json()) as ExtractResult;
-      }
+      if (res.ok) return (await res.json()) as ExtractResult;
 
       if ((res.status === 429 || res.status === 503) && attempt < retries) {
         const retryAfter = res.headers.get("Retry-After");

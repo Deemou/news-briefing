@@ -1,4 +1,3 @@
-// lib/validators/url.ts
 export const isValidHttpUrl = (raw: unknown): raw is string => {
   if (typeof raw !== "string") return false;
   const v = raw.trim();
