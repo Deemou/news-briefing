@@ -67,7 +67,7 @@ export default function BriefingList() {
       <div className="text-center text-gray-500">
         저장된 브리핑이 없습니다.{" "}
         <a className="text-blue-600 hover:underline" href="/">
-          요약 만들기 →
+          요약 만들기
         </a>
       </div>
     );

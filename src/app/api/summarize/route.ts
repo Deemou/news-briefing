@@ -2,91 +2,132 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { callNewsExtractByUrl } from "@/lib/news-extract-api";
 import { isValidHttpUrl } from "@/lib/validators/url";
-import { createSbServer } from "@/lib/supabase/server";
+import { createSbUser, createSbAdmin } from "@/lib/supabase/server";
 import { normalizeUrl } from "@/lib/utils/url";
 import { normalizeText } from "@/lib/utils/text";
 import { hashText } from "@/lib/utils/hash";
+import { sanitizeTitle, sanitizeSite } from "@/lib/validators/meta";
 
 const openai = new OpenAI({ apiKey: process.env.GPT_NEWS_API_KEY });
 
 export const POST = async (req: Request) => {
   try {
-    const { url, text } = await req.json();
+    const { mode, url, text, title, site } = await req.json();
 
-    const sb = createSbServer({ req, serviceRole: true });
+    // 1) 유저 인증
+    const sbUser = createSbUser({ req });
     const {
       data: { user },
-    } = await sb.auth.getUser();
+    } = await sbUser.auth.getUser();
     if (!user) {
       return NextResponse.json(
-        { error: "로그인이 필요합니다." },
+        { error_code: "unauthorized", message: "로그인이 필요합니다." },
         { status: 401 }
       );
     }
 
-    const useUrl = isValidHttpUrl(url);
+    // 2) 서버용 Supabase (service_role)
+    const sb = createSbAdmin();
 
-    if (useUrl) {
-      // 1) URL 경로: 정규화 → 전역 캐시 조회
+    // URL 모드: 전역 정본 경로
+    if (mode === "url" && isValidHttpUrl(url)) {
       const norm = normalizeUrl(url.trim());
 
-      const { data: found } = await sb
-        .from("summaries")
-        .select("id, summary_text, content_hash, total_requests")
-        .eq("source_url", norm)
-        .maybeSingle();
-
-      // 2) 본문 추출
+      // 본문 추출
       const extracted = await callNewsExtractByUrl(norm, {
         timeoutMs: 60000,
         retries: 2,
       });
-      const baseText = (extracted.text || "").trim();
-      if (!baseText) {
+      if (!extracted.ok || !extracted.text?.trim()) {
+        return NextResponse.json({ fallback: true }, { status: 200 });
+      }
+
+      const baseText = normalizeText(extracted.text.trim());
+      const newHash = hashText(baseText);
+
+      // exact hit: URL+해시 동일 → 재사용 + 카운터 증가
+      const { data: exact } = await sb
+        .from("summaries")
+        .select("id, summary_text, total_requests")
+        .eq("source_url", norm)
+        .eq("content_hash", newHash)
+        .maybeSingle();
+
+      if (exact?.id) {
+        await bumpCounters(sb, exact.id, Number(exact.total_requests ?? 0));
+        await linkUser(sb, user.id, exact.id, null, null);
         return NextResponse.json(
-          { error: "기사에서 유효한 본문을 추출하지 못했습니다." },
+          { summary: exact.summary_text },
+          { status: 200 }
+        );
+      }
+
+      // 대표 정본 선택(업데이트 허용 경로)
+      const { data: anyByUrl } = await sb
+        .from("summaries")
+        .select("id, total_requests")
+        .eq("source_url", norm)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // 요약 생성
+      let summary: string;
+      try {
+        summary = await summarize(baseText);
+      } catch (e: any) {
+        console.error("summarize_failed:url", { url: norm, err: e?.message });
+        return NextResponse.json(
+          {
+            error_code: "summarize_failed",
+            message: "요약을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+          },
           { status: 502 }
         );
       }
-      const newHash = hashText(baseText);
 
-      // 3) 캐시 히트 + 변경 없음 → 재사용
-      if (found?.id && found.content_hash === newHash) {
-        await bumpCounters(sb, found.id, found.total_requests ?? 0);
-        await linkUser(sb, user.id, found.id);
-        return NextResponse.json({ summary: found.summary_text });
-      }
+      const metaSite = extracted.meta?.site ?? null;
+      const metaTitle = extracted.title ?? null;
+      const metaPublished = extracted.meta?.published_at ?? null;
 
-      // 4) 요약 생성(신규 혹은 변경됨)
-      const summary = await summarize(baseText);
-
-      if (found?.id) {
-        // 변경됨 → 업데이트
-        await sb
+      if (anyByUrl?.id) {
+        const { error: upErr } = await sb
           .from("summaries")
           .update({
             summary_text: summary,
             content_hash: newHash,
-            site: extracted.meta?.site || null,
-            title: extracted.title || null,
-            article_published_at: extracted.meta?.published_at || null,
-            total_requests: (found.total_requests ?? 0) + 1,
+            site: metaSite,
+            title: metaTitle,
+            article_published_at: metaPublished,
+            total_requests: Number(anyByUrl.total_requests ?? 0) + 1,
             last_requested_at: new Date().toISOString(),
           })
-          .eq("id", found.id);
-
-        await linkUser(sb, user.id, found.id);
-        return NextResponse.json({ summary });
+          .eq("id", anyByUrl.id);
+        if (upErr) {
+          console.error("persist_failed:update:url", {
+            id: anyByUrl.id,
+            err: upErr,
+          });
+          return NextResponse.json(
+            {
+              error_code: "persist_failed",
+              message: "요약 저장에 실패했습니다.",
+            },
+            { status: 500 }
+          );
+        }
+        await linkUser(sb, user.id, anyByUrl.id, null, null);
+        return NextResponse.json({ summary }, { status: 200 });
       }
 
-      // 5) 캐시 미스 → 신규 삽입
+      // 신규 생성(전역 정본 생성)
       const { data: inserted, error } = await sb
         .from("summaries")
         .insert({
           source_url: norm,
-          site: extracted.meta?.site || null,
-          title: extracted.title || null,
-          article_published_at: extracted.meta?.published_at || null,
+          site: metaSite,
+          title: metaTitle,
+          article_published_at: metaPublished,
           summary_text: summary,
           content_hash: newHash,
           generator_version: "v1",
@@ -95,89 +136,160 @@ export const POST = async (req: Request) => {
         })
         .select("id")
         .single();
-
       if (error || !inserted) {
+        console.error("persist_failed:insert:url", { url: norm, err: error });
         return NextResponse.json(
-          { error: "요약 저장에 실패했습니다." },
+          {
+            error_code: "persist_failed",
+            message: "요약 저장에 실패했습니다.",
+          },
+          { status: 500 }
+        );
+      }
+      await linkUser(sb, user.id, inserted.id, null, null);
+      return NextResponse.json({ summary }, { status: 200 });
+    }
+
+    // 텍스트 폴백 모드: 전역 정본 불변, 개인화 row 생성
+    if (mode === "text") {
+      if (!isValidHttpUrl(url)) {
+        return NextResponse.json(
+          {
+            error_code: "validation_failed",
+            message: "유효한 URL이 필요합니다.",
+          },
+          { status: 400 }
+        );
+      }
+      const norm = normalizeUrl(url.trim());
+
+      const t = normalizeText(typeof text === "string" ? text : "");
+      if (!t) {
+        return NextResponse.json(
+          {
+            error_code: "validation_failed",
+            message: "요약할 본문이 없습니다.",
+          },
+          { status: 400 }
+        );
+      }
+      if (t.length < 50) {
+        return NextResponse.json(
+          {
+            error_code: "validation_failed",
+            message: "본문이 너무 짧습니다. 최소 50자 이상 입력하세요.",
+          },
+          { status: 400 }
+        );
+      }
+      if (t.length > 4000) {
+        return NextResponse.json(
+          {
+            error_code: "validation_failed",
+            message: "본문이 너무 깁니다. 최대 4000자 이하로 입력하세요.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const safeTitle = sanitizeTitle(title);
+      const safeSite = sanitizeSite(site);
+      const h = hashText(t);
+
+      // exact hit: URL+해시 동일 → 전역 재사용(카운터 증가 없음)
+      const { data: exact } = await sb
+        .from("summaries")
+        .select("id, summary_text")
+        .eq("source_url", norm)
+        .eq("content_hash", h)
+        .maybeSingle();
+
+      if (exact?.id) {
+        await linkUser(
+          sb,
+          user.id,
+          exact.id,
+          safeTitle ?? null,
+          safeSite ?? safeHostname(norm)
+        );
+        return NextResponse.json(
+          { summary: exact.summary_text },
+          { status: 200 }
+        );
+      }
+
+      // mismatch/new → 새 row 생성(전역 정본은 불변)
+      let summary: string;
+      try {
+        // summary = await summarize(t);
+        summary = "12345";
+      } catch (e: any) {
+        console.error("summarize_failed:text", { url: norm, err: e?.message });
+        return NextResponse.json(
+          {
+            error_code: "summarize_failed",
+            message: "요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+          },
+          { status: 502 }
+        );
+      }
+
+      const { data: created, error: insertErr } = await sb
+        .from("summaries")
+        .insert({
+          source_url: norm,
+          site: null,
+          title: null,
+          article_published_at: null,
+          summary_text: summary,
+          content_hash: h,
+          generator_version: "v1",
+          total_requests: 0,
+          last_requested_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (insertErr || !created) {
+        console.error("persist_failed:insert:text", {
+          url: norm,
+          err: insertErr,
+        });
+        return NextResponse.json(
+          {
+            error_code: "persist_failed",
+            message: "요약 저장에 실패했습니다.",
+          },
           { status: 500 }
         );
       }
 
-      await linkUser(sb, user.id, inserted.id);
-      return NextResponse.json({ summary });
+      await linkUser(
+        sb,
+        user.id,
+        created.id,
+        safeTitle ?? t.slice(0, 120),
+        safeSite ?? safeHostname(norm)
+      );
+      return NextResponse.json({ summary }, { status: 200 });
     }
 
-    // 6) 텍스트 경로: 정제 → 해시 → 전역 캐시 조회
-    const t = typeof text === "string" ? normalizeText(text) : "";
-    if (!t)
-      return NextResponse.json(
-        { error: "요약할 본문이 없습니다." },
-        { status: 400 }
-      );
-    if (t.length < 50)
-      return NextResponse.json(
-        { error: "본문이 너무 짧습니다. 최소 50자 이상 입력하세요." },
-        { status: 400 }
-      );
-    if (t.length > 4000)
-      return NextResponse.json(
-        { error: "본문이 너무 깁니다. 최대 4000자 이하로 입력하세요." },
-        { status: 400 }
-      );
-
-    const h = hashText(t);
-
-    const { data: existText } = await sb
-      .from("summaries")
-      .select("id, summary_text, total_requests")
-      .eq("content_hash", h)
-      .maybeSingle();
-
-    if (existText?.id) {
-      await bumpCounters(sb, existText.id, existText.total_requests ?? 0);
-      await linkUser(sb, user.id, existText.id);
-      return NextResponse.json({ summary: existText.summary_text });
-    }
-
-    const summary = await summarize(t);
-
-    const { data: insertedText, error: insertErr } = await sb
-      .from("summaries")
-      .insert({
-        source_url: null,
-        site: null,
-        title: null,
-        article_published_at: null,
-        summary_text: summary,
-        content_hash: h,
-        generator_version: "v1",
-        total_requests: 1,
-        last_requested_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (insertErr || !insertedText) {
-      return NextResponse.json(
-        { error: "요약 저장에 실패했습니다." },
-        { status: 500 }
-      );
-    }
-
-    await linkUser(sb, user.id, insertedText.id);
-    return NextResponse.json({ summary });
-  } catch (err: any) {
-    console.error("Route error:", err);
     return NextResponse.json(
-      { error: err?.message ?? "서버 오류가 발생했습니다." },
+      { error_code: "invalid_mode", message: "invalid mode" },
+      { status: 400 }
+    );
+  } catch (err: any) {
+    console.error("route_unknown", err);
+    return NextResponse.json(
+      { error_code: "unknown", message: "일시적인 오류가 발생했습니다." },
       { status: 500 }
     );
   }
 };
 
-// 공통: 카운터 증가 + 최근 시각 갱신
+// 합계 카운터(정본에만 증가)
 async function bumpCounters(
-  sb: ReturnType<typeof createSbServer>,
+  sb: ReturnType<typeof createSbAdmin>,
   summaryId: string,
   current: number
 ) {
@@ -190,23 +302,27 @@ async function bumpCounters(
     .eq("id", summaryId);
 }
 
-// 공통: 사용자 링크 upsert
+// 사용자 링크 upsert: user_id+summary_id 기준
 async function linkUser(
-  sb: ReturnType<typeof createSbServer>,
+  sb: ReturnType<typeof createSbAdmin>,
   userId: string,
-  summaryId: string
+  summaryId: string,
+  fallbackTitle: string | null,
+  fallbackSite: string | null
 ) {
   await sb.from("user_summaries").upsert(
     {
       user_id: userId,
       summary_id: summaryId,
+      fallback_title: fallbackTitle,
+      fallback_site: fallbackSite,
       last_requested_at: new Date().toISOString(),
     },
     { onConflict: "user_id,summary_id" }
   );
 }
 
-// OpenAI 요약 함수
+// OpenAI 요약
 async function summarize(baseText: string): Promise<string> {
   const apiKey = process.env.GPT_NEWS_API_KEY;
   if (!apiKey) throw new Error("서버에 API 키가 설정되어 있지 않습니다.");
@@ -234,4 +350,12 @@ async function summarize(baseText: string): Promise<string> {
   const summary = res.output_text?.trim?.() ?? "";
   if (!summary) throw new Error("요약을 생성하지 못했습니다.");
   return summary.slice(0, 800);
+}
+
+function safeHostname(u: string): string | null {
+  try {
+    return new URL(u).hostname;
+  } catch {
+    return null;
+  }
 }

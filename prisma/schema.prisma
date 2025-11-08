@@ -10,15 +10,15 @@ datasource db {
 
 /// users
 model User {
-  id            String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nickname      String
-  email         String?  @unique(map: "users_email_unique_not_null")
+  email         String?   @unique(map: "users_email_unique_not_null")
   avatar_url    String?
-  is_active     Boolean  @default(true)
+  is_active     Boolean   @default(true)
   locale        String?
   last_login_at DateTime?
-  created_at    DateTime @default(dbgenerated("now()"))
-  updated_at    DateTime @default(dbgenerated("now()"))
+  created_at    DateTime  @default(dbgenerated("now()"))
+  updated_at    DateTime  @default(dbgenerated("now()"))
 
   // relations
   providers     UserProvider[]
@@ -29,53 +29,54 @@ model User {
 
 /// user_providers
 model UserProvider {
-  id             String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
-  user_id        String   @db.Uuid
-  provider       String
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  provider         String
   provider_user_id String
-  profile_json   Json?
-  linked_at      DateTime @default(dbgenerated("now()"))
+  profile_json     Json?
+  linked_at        DateTime @default(dbgenerated("now()"))
 
   // relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([user_id], map: "user_providers_user_id_idx")
   @@unique([provider, provider_user_id], map: "user_providers_unique_provider_uid")
+  @@index([user_id], map: "user_providers_user_id_idx")
   @@map("user_providers")
 }
 
 /// summaries
 model Summary {
-  id               String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
-  source_url       String?
-  site             String?
-  title            String?
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_url           String
+  site                 String?
+  title                String?
   article_published_at DateTime?
-  content_hash     String
-  summary_text     String
-  generator_version String  @default("v1")
-  total_requests   BigInt   @default(0)
-  last_requested_at DateTime?
-  created_at       DateTime @default(dbgenerated("now()"))
-  updated_at       DateTime @default(dbgenerated("now()"))
+  content_hash         String
+  summary_text         String
+  generator_version    String    @default("v1")
+  total_requests       BigInt    @default(0)
+  last_requested_at    DateTime?
+  created_at           DateTime  @default(dbgenerated("now()"))
+  updated_at           DateTime  @default(dbgenerated("now()"))
 
   // relations
   userSummaries UserSummary[]
 
-  @@unique([source_url], map: "summaries_source_url_unique")
   @@index([content_hash], map: "summaries_content_hash_idx")
   @@map("summaries")
 }
 
 /// user_summaries
 model UserSummary {
-  id               String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
-  user_id          String   @db.Uuid
-  summary_id       String   @db.Uuid
-  pinned           Boolean  @default(false)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  summary_id        String    @db.Uuid
+  pinned            Boolean   @default(false)
+  fallback_title    String?
+  fallback_site     String?
   last_requested_at DateTime?
-  created_at       DateTime @default(dbgenerated("now()"))
-  updated_at       DateTime @default(dbgenerated("now()"))
+  created_at        DateTime  @default(dbgenerated("now()"))
+  updated_at        DateTime  @default(dbgenerated("now()"))
 
   // relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)

@@ -1,49 +1,80 @@
 import { NextResponse } from "next/server";
-import { createSbServer } from "@/lib/supabase/server";
+import { createSbUser, createSbAdmin } from "@/lib/supabase/server";
 
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const { params } = ctx;
-  const { id } = await params;
+  const { id } = await ctx.params; // user_summaries.id
 
-  const sb = createSbServer({ req });
+  const sbUser = createSbUser({ req });
   const {
     data: { user },
-  } = await sb.auth.getUser();
-  if (!user)
+    error: uErr,
+  } = await sbUser.auth.getUser();
+  if (uErr) {
+    console.error("[briefings/:id] getUser failed", { message: uErr.message });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!user) {
+    console.warn("[briefings/:id] no user session");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const { data, error } = await sb
-    .from("summaries")
+  const admin = createSbAdmin();
+
+  const { data: link, error: linkErr } = await admin
+    .from("user_summaries")
     .select(
-      `
-      id,
-      source_url,
-      site,
-      title,
-      summary_text,
-      created_at,
-      user_summaries!inner(pinned)
-    `
+      "id, user_id, summary_id, fallback_title, fallback_site, pinned, last_requested_at"
     )
     .eq("id", id)
-    .eq("user_summaries.user_id", user.id)
-    .single();
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (error || !data)
+  if (linkErr) {
+    console.error("[briefings/:id] user_summaries read failed", {
+      id,
+      userId: user.id,
+      detail: linkErr.message,
+    });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+  if (!link) {
+    console.warn("[briefings/:id] link not found", { id, userId: user.id });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const { data: sum, error: sumErr } = await admin
+    .from("summaries")
+    .select("id, source_url, site, title, summary_text, created_at")
+    .eq("id", link.summary_id)
+    .maybeSingle();
+
+  if (sumErr) {
+    console.error("[briefings/:id] summaries read failed", {
+      summaryId: link.summary_id,
+      detail: sumErr.message,
+    });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+  if (!sum) {
+    console.warn("[briefings/:id] summary not found", {
+      summaryId: link.summary_id,
+    });
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   return NextResponse.json({
     briefing: {
-      id: data.id,
-      source_url: data.source_url,
-      site: data.site,
-      title: data.title,
-      summary_text: data.summary_text,
-      created_at: data.created_at,
-      pinned: data.user_summaries?.[0]?.pinned ?? false,
+      id: link.id,
+      summary_id: sum.id,
+      source_url: sum.source_url,
+      site: link.fallback_site ?? sum.site,
+      title: link.fallback_title ?? sum.title,
+      summary_text: sum.summary_text,
+      created_at: sum.created_at,
+      pinned: link.pinned ?? false,
     },
   });
 }
@@ -52,22 +83,41 @@ export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await ctx.params;
+  const { id } = await ctx.params; // user_summaries.id
 
-  const sb = createSbServer({ req });
+  // 1) 세션 확인
+  const sbUser = createSbUser({ req });
   const {
     data: { user },
-  } = await sb.auth.getUser();
-  if (!user)
+    error: uErr,
+  } = await sbUser.auth.getUser();
+  if (uErr) {
+    console.error("[briefings/:id][DELETE] getUser failed", {
+      message: uErr.message,
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!user) {
+    console.warn("[briefings/:id][DELETE] no user session");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const { error } = await sb
+  // 2) 삭제는 본인 user_summaries만
+  const admin = createSbAdmin();
+  const { error: delErr } = await admin
     .from("user_summaries")
     .delete()
-    .eq("summary_id", id)
+    .eq("id", id)
     .eq("user_id", user.id);
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  if (delErr) {
+    console.error("[briefings/:id][DELETE] delete failed", {
+      id,
+      userId: user.id,
+      detail: delErr.message,
+    });
+    return NextResponse.json({ error: delErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true }, { status: 200 });
 }

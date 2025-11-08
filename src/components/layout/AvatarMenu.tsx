@@ -23,10 +23,13 @@ export default function AvatarMenu() {
         setUser(null);
         return;
       }
+
       const { data, error } = await supabase
         .from("users")
         .select("nickname, avatar_url")
+        .eq("id", user.id)
         .single();
+
       if (!mounted) return;
       if (!error && data) {
         setUser({ nickname: data.nickname, avatar_url: data.avatar_url });
