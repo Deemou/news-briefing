@@ -4,7 +4,7 @@ export type SummarizeUrlRequest = {
 };
 
 export type SummarizeTextRequest = {
-  mode: "text";
+  mode: "fallback";
   url: string;
   text: string;
   title?: string;

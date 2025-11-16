@@ -161,7 +161,7 @@ export const POST = async (req: Request) => {
     }
 
     // 텍스트 폴백 모드: 전역 정본 불변, 개인화 row 생성
-    if (mode === "text") {
+    if (mode === "fallback") {
       if (!isValidHttpUrl(url)) {
         return NextResponse.json(
           {

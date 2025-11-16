@@ -78,7 +78,7 @@ export default function SummaryPage() {
         const payload: SummarizeRequest = urlMode
           ? { mode: "url", url: url.trim() }
           : {
-              mode: "text",
+              mode: "fallback",
               url: url.trim(),
               text: text.trim(),
               title: title.trim() || undefined,
