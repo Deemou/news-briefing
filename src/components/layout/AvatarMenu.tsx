@@ -7,7 +7,7 @@ import { UserBasic } from "@/types/user";
 
 export default function AvatarMenu() {
   const router = useRouter();
-  const supabase = createSbBrowser();
+  const sbBrowser = createSbBrowser();
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<UserBasic | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -17,17 +17,17 @@ export default function AvatarMenu() {
     let mounted = true;
     (async () => {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+        data: { user: currentUser },
+      } = await sbBrowser.auth.getUser();
+      if (!currentUser) {
         setUser(null);
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await sbBrowser
         .from("users")
         .select("nickname, avatar_url")
-        .eq("id", user.id)
+        .eq("id", currentUser.id)
         .single();
 
       if (!mounted) return;
@@ -38,7 +38,7 @@ export default function AvatarMenu() {
     return () => {
       mounted = false;
     };
-  }, [supabase]);
+  }, [sbBrowser]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -66,7 +66,7 @@ export default function AvatarMenu() {
   const logout = async () => {
     setOpen(false);
     setUser(null);
-    await supabase.auth.signOut();
+    await sbBrowser.auth.signOut();
     router.refresh();
   };
 

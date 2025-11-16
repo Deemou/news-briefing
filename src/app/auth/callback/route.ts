@@ -48,25 +48,25 @@ export async function GET(req: Request) {
     return res;
   }
 
-  const u = userData.user;
-  const provider = u.app_metadata.provider as Provider;
-  const meta = u.user_metadata as ProviderUserMeta;
+  const user = userData.user;
+  const provider = user.app_metadata.provider as Provider;
+  const meta = user.user_metadata as ProviderUserMeta;
   const norm = normalizeProfile(meta);
   const now = new Date().toISOString();
 
   // 3) DB 동기화는 서버 admin(비밀키)로만 수행
-  const sb = createSbAdmin();
+  const sbAdmin = createSbAdmin();
 
   // 3-1) users 존재 확인
-  const { data: existingUser, error: readErr } = await sb
+  const { data: existingUser, error: readErr } = await sbAdmin
     .from("users")
     .select("id")
-    .eq("id", u.id)
+    .eq("id", user.id)
     .maybeSingle();
 
   if (readErr) {
     console.error("[auth/callback] users read failed", {
-      userId: u.id,
+      userId: user.id,
       provider,
       detail: readErr.message,
     });
@@ -76,30 +76,30 @@ export async function GET(req: Request) {
   // 3-2) users insert/update
   if (!existingUser) {
     const newUser: UserInsert = {
-      id: u.id,
-      email: u.email || null,
+      id: user.id,
+      email: user.email || null,
       nickname: norm.nickname,
       avatar_url: norm.avatarUrl,
       last_login_at: now,
       is_active: true,
     };
-    const { error: insertErr } = await sb.from("users").insert(newUser);
+    const { error: insertErr } = await sbAdmin.from("users").insert(newUser);
     if (insertErr) {
       console.error("[auth/callback] users insert failed", {
-        userId: u.id,
+        userId: user.id,
         provider,
         detail: insertErr.message,
       });
       return res;
     }
   } else {
-    const { error: updateErr } = await sb
+    const { error: updateErr } = await sbAdmin
       .from("users")
       .update({ last_login_at: now, is_active: true })
-      .eq("id", u.id);
+      .eq("id", user.id);
     if (updateErr) {
       console.error("[auth/callback] users update failed", {
-        userId: u.id,
+        userId: user.id,
         provider,
         detail: updateErr.message,
       });
@@ -108,19 +108,19 @@ export async function GET(req: Request) {
   }
 
   // 3-3) user_providers upsert
-  const { error: upErr } = await sb.from("user_providers").upsert(
+  const { error: upErr } = await sbAdmin.from("user_providers").upsert(
     {
-      user_id: u.id,
+      user_id: user.id,
       provider,
       provider_user_id: norm.providerUserId,
-      profile_json: u.user_metadata,
+      profile_json: user.user_metadata,
       linked_at: now,
     },
     { onConflict: "provider,provider_user_id" }
   );
   if (upErr) {
     console.error("[auth/callback] user_providers upsert failed", {
-      userId: u.id,
+      userId: user.id,
       provider,
       detail: upErr.message,
     });
