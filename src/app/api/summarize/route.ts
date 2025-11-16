@@ -31,10 +31,10 @@ export const POST = async (req: Request) => {
 
     // URL 모드: 전역 정본 경로
     if (mode === "url" && isValidHttpUrl(url)) {
-      const norm = normalizeUrl(url.trim());
+      const normalizedUrl = normalizeUrl(url.trim());
 
       // 본문 추출
-      const extracted = await callNewsExtractByUrl(norm, {
+      const extracted = await callNewsExtractByUrl(normalizedUrl, {
         timeoutMs: 60000,
         retries: 2,
       });
@@ -45,19 +45,23 @@ export const POST = async (req: Request) => {
       const baseText = normalizeText(extracted.text.trim());
       const newHash = hashText(baseText);
 
-      // exact hit: URL+해시 동일 → 재사용 + 카운터 증가
-      const { data: exact } = await sb
+      // exactSummary hit: URL+해시 동일 → 재사용 + 카운터 증가
+      const { data: exactSummary } = await sb
         .from("summaries")
         .select("id, summary_text, total_requests")
-        .eq("source_url", norm)
+        .eq("source_url", normalizedUrl)
         .eq("content_hash", newHash)
         .maybeSingle();
 
-      if (exact?.id) {
-        await bumpCounters(sb, exact.id, Number(exact.total_requests ?? 0));
-        await linkUser(sb, user.id, exact.id, null, null);
+      if (exactSummary?.id) {
+        await bumpCounters(
+          sb,
+          exactSummary.id,
+          Number(exactSummary.total_requests ?? 0)
+        );
+        await linkUser(sb, user.id, exactSummary.id, normalizedUrl, null, null);
         return NextResponse.json(
-          { summary: exact.summary_text },
+          { summary: exactSummary.summary_text },
           { status: 200 }
         );
       }
@@ -66,7 +70,7 @@ export const POST = async (req: Request) => {
       const { data: anyByUrl } = await sb
         .from("summaries")
         .select("id, total_requests")
-        .eq("source_url", norm)
+        .eq("source_url", normalizedUrl)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -76,7 +80,10 @@ export const POST = async (req: Request) => {
       try {
         summary = await summarize(baseText);
       } catch (e: any) {
-        console.error("summarize_failed:url", { url: norm, err: e?.message });
+        console.error("summarize_failed:url", {
+          url: normalizedUrl,
+          err: e?.message,
+        });
         return NextResponse.json(
           {
             error_code: "summarize_failed",
@@ -116,7 +123,7 @@ export const POST = async (req: Request) => {
             { status: 500 }
           );
         }
-        await linkUser(sb, user.id, anyByUrl.id, null, null);
+        await linkUser(sb, user.id, anyByUrl.id, normalizedUrl, null, null);
         return NextResponse.json({ summary }, { status: 200 });
       }
 
@@ -124,7 +131,7 @@ export const POST = async (req: Request) => {
       const { data: inserted, error } = await sb
         .from("summaries")
         .insert({
-          source_url: norm,
+          source_url: normalizedUrl,
           site: metaSite,
           title: metaTitle,
           article_published_at: metaPublished,
@@ -137,7 +144,10 @@ export const POST = async (req: Request) => {
         .select("id")
         .single();
       if (error || !inserted) {
-        console.error("persist_failed:insert:url", { url: norm, err: error });
+        console.error("persist_failed:insert:url", {
+          url: normalizedUrl,
+          err: error,
+        });
         return NextResponse.json(
           {
             error_code: "persist_failed",
@@ -146,7 +156,7 @@ export const POST = async (req: Request) => {
           { status: 500 }
         );
       }
-      await linkUser(sb, user.id, inserted.id, null, null);
+      await linkUser(sb, user.id, inserted.id, normalizedUrl, null, null);
       return NextResponse.json({ summary }, { status: 200 });
     }
 
@@ -161,10 +171,12 @@ export const POST = async (req: Request) => {
           { status: 400 }
         );
       }
-      const norm = normalizeUrl(url.trim());
+      const normalizedUrl = normalizeUrl(url.trim());
 
-      const t = normalizeText(typeof text === "string" ? text : "");
-      if (!t) {
+      const normalizedText = normalizeText(
+        typeof text === "string" ? text : ""
+      );
+      if (!normalizedText) {
         return NextResponse.json(
           {
             error_code: "validation_failed",
@@ -173,7 +185,7 @@ export const POST = async (req: Request) => {
           { status: 400 }
         );
       }
-      if (t.length < 50) {
+      if (normalizedText.length < 50) {
         return NextResponse.json(
           {
             error_code: "validation_failed",
@@ -182,7 +194,7 @@ export const POST = async (req: Request) => {
           { status: 400 }
         );
       }
-      if (t.length > 4000) {
+      if (normalizedText.length > 4000) {
         return NextResponse.json(
           {
             error_code: "validation_failed",
@@ -194,37 +206,55 @@ export const POST = async (req: Request) => {
 
       const safeTitle = sanitizeTitle(title);
       const safeSite = sanitizeSite(site);
-      const h = hashText(t);
+      const hashedText = hashText(normalizedText);
 
-      // exact hit: URL+해시 동일 → 전역 재사용(카운터 증가 없음)
-      const { data: exact } = await sb
-        .from("summaries")
-        .select("id, summary_text")
-        .eq("source_url", norm)
-        .eq("content_hash", h)
+      // 0) 내 기존 URL 링크 선조회(교체 판단용)
+      const { data: existingLink } = await sb
+        .from("user_summaries")
+        .select("id, summary_id")
+        .eq("user_id", user.id)
+        .eq("source_url", normalizedUrl)
         .maybeSingle();
 
-      if (exact?.id) {
+      // 1) 전역 exactSummary 재사용
+      const { data: exactSummary } = await sb
+        .from("summaries")
+        .select("id, summary_text")
+        .eq("source_url", normalizedUrl)
+        .eq("content_hash", hashedText)
+        .maybeSingle();
+
+      if (exactSummary?.id) {
+        if (existingLink?.summary_id === exactSummary.id) {
+          return NextResponse.json(
+            { summary: exactSummary.summary_text },
+            { status: 200 }
+          );
+        }
         await linkUser(
           sb,
           user.id,
-          exact.id,
+          exactSummary.id,
+          normalizedUrl,
           safeTitle ?? null,
-          safeSite ?? safeHostname(norm)
+          safeSite ?? safeHostname(normalizedUrl)
         );
         return NextResponse.json(
-          { summary: exact.summary_text },
+          { summary: exactSummary.summary_text },
           { status: 200 }
         );
       }
 
-      // mismatch/new → 새 row 생성(전역 정본은 불변)
+      // 2) exactSummary miss → 새 개인본 row 생성
       let summary: string;
       try {
-        // summary = await summarize(t);
-        summary = "12345";
+        // summary = await summarize(normalizedText);
+        summary = "Test Summary";
       } catch (e: any) {
-        console.error("summarize_failed:text", { url: norm, err: e?.message });
+        console.error("summarize_failed:text", {
+          url: normalizedUrl,
+          err: e?.message,
+        });
         return NextResponse.json(
           {
             error_code: "summarize_failed",
@@ -237,12 +267,12 @@ export const POST = async (req: Request) => {
       const { data: created, error: insertErr } = await sb
         .from("summaries")
         .insert({
-          source_url: norm,
+          source_url: normalizedUrl,
           site: null,
           title: null,
           article_published_at: null,
           summary_text: summary,
-          content_hash: h,
+          content_hash: hashedText,
           generator_version: "v1",
           total_requests: 0,
           last_requested_at: new Date().toISOString(),
@@ -252,7 +282,7 @@ export const POST = async (req: Request) => {
 
       if (insertErr || !created) {
         console.error("persist_failed:insert:text", {
-          url: norm,
+          url: normalizedUrl,
           err: insertErr,
         });
         return NextResponse.json(
@@ -268,8 +298,9 @@ export const POST = async (req: Request) => {
         sb,
         user.id,
         created.id,
-        safeTitle ?? t.slice(0, 120),
-        safeSite ?? safeHostname(norm)
+        normalizedUrl,
+        safeTitle ?? normalizedText.slice(0, 120),
+        safeSite ?? safeHostname(normalizedUrl)
       );
       return NextResponse.json({ summary }, { status: 200 });
     }
@@ -302,11 +333,12 @@ async function bumpCounters(
     .eq("id", summaryId);
 }
 
-// 사용자 링크 upsert: user_id+summary_id 기준
+// 사용자 링크 upsert: user_id+source_url 기준
 async function linkUser(
   sb: ReturnType<typeof createSbAdmin>,
   userId: string,
   summaryId: string,
+  sourceUrl: string,
   fallbackTitle: string | null,
   fallbackSite: string | null
 ) {
@@ -314,11 +346,12 @@ async function linkUser(
     {
       user_id: userId,
       summary_id: summaryId,
+      source_url: sourceUrl,
       fallback_title: fallbackTitle,
       fallback_site: fallbackSite,
       last_requested_at: new Date().toISOString(),
     },
-    { onConflict: "user_id,summary_id" }
+    { onConflict: "user_id,source_url" }
   );
 }
 

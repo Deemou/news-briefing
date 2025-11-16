@@ -62,7 +62,7 @@ model Summary {
   // relations
   userSummaries UserSummary[]
 
-  @@index([content_hash], map: "summaries_content_hash_idx")
+  @@unique([source_url, content_hash], map: "summaries_url_hash_key")
   @@map("summaries")
 }
 
@@ -71,6 +71,7 @@ model UserSummary {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id           String    @db.Uuid
   summary_id        String    @db.Uuid
+  source_url        String
   pinned            Boolean   @default(false)
   fallback_title    String?
   fallback_site     String?
@@ -82,8 +83,9 @@ model UserSummary {
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   summary Summary @relation(fields: [summary_id], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, summary_id])
+  @@unique([user_id, source_url])
   @@index([user_id, created_at], map: "user_summaries_user_created_idx")
   @@index([user_id, last_requested_at], map: "user_summaries_user_last_req_idx")
+  @@index([summary_id])
   @@map("user_summaries")
 }
