@@ -7,6 +7,7 @@ import { normalizeUrl } from "@/lib/utils/url";
 import { normalizeText } from "@/lib/utils/text";
 import { hashText } from "@/lib/utils/hash";
 import { sanitizeTitle, sanitizeSite } from "@/lib/validators/meta";
+import { performFallbackUpdate } from "@/lib/supabase/rpc";
 
 const openai = new OpenAI({ apiKey: process.env.GPT_NEWS_API_KEY });
 
@@ -131,6 +132,7 @@ export const POST = async (req: Request) => {
       const { data: inserted, error } = await sb
         .from("summaries")
         .insert({
+          mode,
           source_url: normalizedUrl,
           site: metaSite,
           title: metaTitle,
@@ -225,20 +227,14 @@ export const POST = async (req: Request) => {
         .maybeSingle();
 
       if (exactSummary?.id) {
-        if (existingLink?.summary_id === exactSummary.id) {
-          return NextResponse.json(
-            { summary: exactSummary.summary_text },
-            { status: 200 }
-          );
-        }
-        await linkUser(
-          sb,
-          user.id,
-          exactSummary.id,
-          normalizedUrl,
-          safeTitle ?? null,
-          safeSite ?? safeHostname(normalizedUrl)
-        );
+        await performFallbackUpdate(sb, {
+          userId: user.id,
+          sourceUrl: normalizedUrl,
+          targetSummaryId: exactSummary.id,
+          oldSummaryId: existingLink?.summary_id ?? null,
+          fallbackTitle: safeTitle ?? normalizedText.slice(0, 120),
+          fallbackSite: safeSite ?? safeHostname(normalizedUrl),
+        });
         return NextResponse.json(
           { summary: exactSummary.summary_text },
           { status: 200 }
@@ -267,6 +263,7 @@ export const POST = async (req: Request) => {
       const { data: created, error: insertErr } = await sb
         .from("summaries")
         .insert({
+          mode,
           source_url: normalizedUrl,
           site: null,
           title: null,
@@ -294,14 +291,15 @@ export const POST = async (req: Request) => {
         );
       }
 
-      await linkUser(
-        sb,
-        user.id,
-        created.id,
-        normalizedUrl,
-        safeTitle ?? normalizedText.slice(0, 120),
-        safeSite ?? safeHostname(normalizedUrl)
-      );
+      await performFallbackUpdate(sb, {
+        userId: user.id,
+        sourceUrl: normalizedUrl,
+        targetSummaryId: created.id,
+        oldSummaryId: existingLink?.summary_id ?? null,
+        fallbackTitle: safeTitle ?? normalizedText.slice(0, 120),
+        fallbackSite: safeSite ?? safeHostname(normalizedUrl),
+      });
+
       return NextResponse.json({ summary }, { status: 200 });
     }
 

@@ -8,6 +8,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SummaryMode {
+  url
+  fallback
+}
+
 /// users
 model User {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -46,18 +51,19 @@ model UserProvider {
 
 /// summaries
 model Summary {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mode                 SummaryMode @default(url)
   source_url           String
   site                 String?
   title                String?
   article_published_at DateTime?
   content_hash         String
   summary_text         String
-  generator_version    String    @default("v1")
-  total_requests       BigInt    @default(0)
+  generator_version    String      @default("v1")
+  total_requests       BigInt      @default(0)
   last_requested_at    DateTime?
-  created_at           DateTime  @default(dbgenerated("now()"))
-  updated_at           DateTime  @default(dbgenerated("now()"))
+  created_at           DateTime    @default(dbgenerated("now()"))
+  updated_at           DateTime    @default(dbgenerated("now()"))
 
   // relations
   userSummaries UserSummary[]

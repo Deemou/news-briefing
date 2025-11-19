@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSbUser, createSbAdmin } from "@/lib/supabase/server";
+import { deleteLinkAndGc } from "@/lib/supabase/rpc";
 
 export async function GET(
   req: Request,
@@ -102,22 +103,28 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2) 삭제는 본인 user_summaries만
+  // 2) 본인 링크 읽어 summary_id 확보
   const admin = createSbAdmin();
-  const { error: delErr } = await admin
+  const { data: link, error: readErr } = await admin
     .from("user_summaries")
-    .delete()
+    .select("id, summary_id, user_id")
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .single();
 
-  if (delErr) {
-    console.error("[briefings/:id][DELETE] delete failed", {
-      id,
-      userId: user.id,
-      detail: delErr.message,
-    });
-    return NextResponse.json({ error: delErr.message }, { status: 500 });
+  if (readErr || !link) {
+    if (readErr) {
+      console.error("[briefings/:id][DELETE] read failed", {
+        id,
+        userId: user.id,
+        detail: readErr.message,
+      });
+    }
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  // 3) RPC: 링크 삭제 + orphan GC(동일 트랜잭션)
+  await deleteLinkAndGc(admin, link.id, link.summary_id);
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }
