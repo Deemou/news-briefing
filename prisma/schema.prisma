@@ -13,7 +13,6 @@ enum SummaryMode {
   fallback
 }
 
-/// users
 model User {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nickname      String
@@ -32,7 +31,6 @@ model User {
   @@map("users")
 }
 
-/// user_providers
 model UserProvider {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id          String   @db.Uuid
@@ -49,7 +47,6 @@ model UserProvider {
   @@map("user_providers")
 }
 
-/// summaries
 model Summary {
   id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   mode                 SummaryMode @default(url)
@@ -61,7 +58,7 @@ model Summary {
   summary_text         String
   generator_version    String      @default("v1")
   total_requests       BigInt      @default(0)
-  last_requested_at    DateTime?
+  last_requested_at    DateTime    @default(dbgenerated("now()"))
   created_at           DateTime    @default(dbgenerated("now()"))
   updated_at           DateTime    @default(dbgenerated("now()"))
 
@@ -72,18 +69,17 @@ model Summary {
   @@map("summaries")
 }
 
-/// user_summaries
 model UserSummary {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id           String    @db.Uuid
-  summary_id        String    @db.Uuid
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String   @db.Uuid
+  summary_id        String   @db.Uuid
   source_url        String
-  pinned            Boolean   @default(false)
+  pinned            Boolean  @default(false)
   fallback_title    String?
   fallback_site     String?
-  last_requested_at DateTime?
-  created_at        DateTime  @default(dbgenerated("now()"))
-  updated_at        DateTime  @default(dbgenerated("now()"))
+  last_requested_at DateTime @default(dbgenerated("now()"))
+  created_at        DateTime @default(dbgenerated("now()"))
+  updated_at        DateTime @default(dbgenerated("now()"))
 
   // relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
