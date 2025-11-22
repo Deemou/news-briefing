@@ -34,19 +34,22 @@ export default function SummaryPage() {
 
   // 한도 정보 fetch
   useEffect(() => {
+    const defaultUsageErrorMessage =
+      "잔여 요약 한도 정보를 불러오지 못했습니다.";
+    const setDefaultUsageError = () => setUsageError(defaultUsageErrorMessage);
+
     fetch("/api/get-summary-usage")
       .then((res) => res.json())
       .then((data) => {
         if (data?.remainingCount !== undefined && data?.limit !== undefined) {
           setRemaining(data.remainingCount);
           setLimit(data.limit);
-        } else {
-          setUsageError("잔여 요약 한도 정보를 불러오지 못했습니다.");
+
+          return;
         }
+        setDefaultUsageError();
       })
-      .catch(() => {
-        setUsageError("잔여 요약 한도 정보를 불러오지 못했습니다.");
-      });
+      .catch(setDefaultUsageError);
   }, []);
 
   const refreshSummaryUsage = useCallback(() => {
@@ -129,24 +132,8 @@ export default function SummaryPage() {
 
         if (!res.ok) {
           const code = data?.error_code;
-          switch (code) {
-            case "validation_failed":
-              setError(data?.message || "입력값을 확인해 주세요.");
-              break;
-            case "summarize_failed":
-              setError("요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-              break;
-            case "persist_failed":
-              setError("요약 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-              break;
-            case "unauthorized":
-              setError("로그인이 필요합니다.");
-              break;
-            default:
-              setError(
-                "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-              );
-          }
+          if (code) setError(data.message);
+
           return;
         }
 

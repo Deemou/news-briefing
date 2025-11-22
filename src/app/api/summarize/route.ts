@@ -194,7 +194,7 @@ export const POST = async (req: Request) => {
           return NextResponse.json(
             {
               error_code: "persist_failed",
-              message: "요약 저장에 실패했습니다.",
+              message: "요약 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
             },
             { status: 500 }
           );
@@ -241,7 +241,7 @@ export const POST = async (req: Request) => {
         return NextResponse.json(
           {
             error_code: "persist_failed",
-            message: "요약 저장에 실패했습니다.",
+            message: "요약 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
           },
           { status: 500 }
         );
@@ -284,7 +284,7 @@ export const POST = async (req: Request) => {
         return NextResponse.json(
           {
             error_code: "validation_failed",
-            message: "본문이 너무 깁니다. 최대 4000자 이하로 입력하세요.",
+            message: "본문이 너무 깁니다. 최대 4,000자 이하로 입력하세요.",
           },
           { status: 400 }
         );
@@ -375,7 +375,7 @@ export const POST = async (req: Request) => {
         return NextResponse.json(
           {
             error_code: "persist_failed",
-            message: "요약 저장에 실패했습니다.",
+            message: "요약 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
           },
           { status: 500 }
         );
@@ -403,7 +403,10 @@ export const POST = async (req: Request) => {
     console.error("route_unknown", err);
 
     return NextResponse.json(
-      { error_code: "unknown", message: "일시적인 오류가 발생했습니다." },
+      {
+        error_code: "unknown",
+        message: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      },
       { status: 500 }
     );
   } finally {
