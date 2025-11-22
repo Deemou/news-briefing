@@ -60,3 +60,13 @@ export async function deleteLinkAndGc(
   });
   if (error) throw error;
 }
+
+export async function incrementTodaySummaryUsageCount(
+  sbAdmin: AdminClient,
+  userId: string
+): Promise<void> {
+  const { error } = await sbAdmin.rpc("increment_today_summary_usage_count", {
+    p_user_id: userId,
+  });
+  if (error) throw error;
+}

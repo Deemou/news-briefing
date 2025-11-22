@@ -91,3 +91,13 @@ model UserSummary {
   @@index([summary_id])
   @@map("user_summaries")
 }
+
+model SummaryUsageDaily {
+  user_id      String   @db.Uuid
+  usage_date   DateTime
+  used_count   Int      @default(0)
+  last_used_at DateTime @default(dbgenerated("now()"))
+
+  @@id([user_id, usage_date])
+  @@map("summary_usage_daily")
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { isValidHttpUrl } from "@/lib/validators/url";
 import Button from "@/components/ui/Button";
 import { SummarizeRequest } from "@/types/summarize";
@@ -19,6 +19,9 @@ export default function SummaryPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit, setLimit] = useState<number | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
 
   const tlen = text.trim().length;
   const urlMode = !fallbackMode;
@@ -28,6 +31,32 @@ export default function SummaryPage() {
   const isValidText = !isTooShort && !isTooLong;
 
   const canSubmit = (urlMode ? urlValid : isValidText) && !isSubmitting;
+
+  // 한도 정보 fetch
+  useEffect(() => {
+    fetch("/api/get-summary-usage")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.remainingCount !== undefined && data?.limit !== undefined) {
+          setRemaining(data.remainingCount);
+          setLimit(data.limit);
+        } else {
+          setUsageError("잔여 요약 한도 정보를 불러오지 못했습니다.");
+        }
+      })
+      .catch(() => {
+        setUsageError("잔여 요약 한도 정보를 불러오지 못했습니다.");
+      });
+  }, []);
+
+  const refreshSummaryUsage = useCallback(() => {
+    fetch("/api/get-summary-usage")
+      .then((res) => res.json())
+      .then((data) => {
+        setRemaining(data.remainingCount);
+        setLimit(data.limit);
+      });
+  }, []);
 
   const onUrlChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,9 +150,10 @@ export default function SummaryPage() {
           return;
         }
 
+        refreshSummaryUsage();
         setSummary(data.summary);
       } catch (err: any) {
-        setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."); // [변경] 일반화
+        setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       } finally {
         setIsSubmitting(false);
       }
@@ -134,6 +164,15 @@ export default function SummaryPage() {
   return (
     <>
       <h1 className="text-2xl font-semibold mb-4">뉴스 요약</h1>
+
+      {/* 한도 정보 안내 */}
+      <div className="mb-3 text-sm">
+        {usageError
+          ? usageError
+          : remaining !== null && limit !== null
+          ? `오늘 남은 요약 가능 횟수: ${remaining} / ${limit}`
+          : "잔여 요약 한도 계산중…"}
+      </div>
 
       <form onSubmit={onSubmit} className="space-y-4" aria-describedby="helper">
         {/* URL 입력 */}
