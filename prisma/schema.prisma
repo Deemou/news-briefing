@@ -21,8 +21,8 @@ model User {
   is_active     Boolean   @default(true)
   locale        String?
   last_login_at DateTime?
-  created_at    DateTime  @default(dbgenerated("now()"))
-  updated_at    DateTime  @default(dbgenerated("now()"))
+  created_at    DateTime  @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
+  updated_at    DateTime  @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
 
   // relations
   providers     UserProvider[]
@@ -37,7 +37,7 @@ model UserProvider {
   provider         String
   provider_user_id String
   profile_json     Json?
-  linked_at        DateTime @default(dbgenerated("now()"))
+  linked_at        DateTime @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
 
   // relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -58,9 +58,9 @@ model Summary {
   summary_text         String
   generator_version    String      @default("v1")
   total_requests       BigInt      @default(0)
-  last_requested_at    DateTime    @default(dbgenerated("now()"))
-  created_at           DateTime    @default(dbgenerated("now()"))
-  updated_at           DateTime    @default(dbgenerated("now()"))
+  last_requested_at    DateTime    @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
+  created_at           DateTime    @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
+  updated_at           DateTime    @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
 
   // relations
   userSummaries UserSummary[]
@@ -77,9 +77,9 @@ model UserSummary {
   pinned            Boolean  @default(false)
   fallback_title    String?
   fallback_site     String?
-  last_requested_at DateTime @default(dbgenerated("now()"))
-  created_at        DateTime @default(dbgenerated("now()"))
-  updated_at        DateTime @default(dbgenerated("now()"))
+  last_requested_at DateTime @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
+  created_at        DateTime @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
+  updated_at        DateTime @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
 
   // relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -96,7 +96,7 @@ model SummaryUsageDaily {
   user_id      String   @db.Uuid
   usage_date   DateTime
   used_count   Int      @default(0)
-  last_used_at DateTime @default(dbgenerated("now()"))
+  last_used_at DateTime @default(dbgenerated("(now() at time zone 'Asia/Seoul')"))
 
   @@id([user_id, usage_date])
   @@map("summary_usage_daily")

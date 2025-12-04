@@ -1,25 +1,17 @@
 import { createSbAdmin } from "./server";
+import { getKSTNowISO, getTodayKSTDateString } from "@/lib/utils/kstDate";
 
 const sbAdmin = createSbAdmin();
 
-function getTodayDateString(): string {
-  const now = new Date();
-  const yyyy = now.getUTCFullYear();
-  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(now.getUTCDate()).padStart(2, "0");
-
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 export async function createTodaySummaryUsageRowIfNotExist(userId: string) {
-  const today = getTodayDateString();
+  const today = getTodayKSTDateString();
 
   const { error } = await sbAdmin.from("summary_usage_daily").upsert(
     {
       user_id: userId,
       usage_date: today,
       used_count: 0,
-      last_used_at: new Date().toISOString(),
+      last_used_at: getKSTNowISO(),
     },
     {
       onConflict: "user_id,usage_date",
@@ -35,7 +27,7 @@ export async function createTodaySummaryUsageRowIfNotExist(userId: string) {
 export async function getTodaySummaryUsageCount(
   userId: string
 ): Promise<number> {
-  const today = getTodayDateString();
+  const today = getTodayKSTDateString();
 
   await createTodaySummaryUsageRowIfNotExist(userId);
 

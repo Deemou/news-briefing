@@ -16,6 +16,7 @@ import {
   releaseUserSummaryLock,
 } from "@/lib/locks/summaryLock";
 import { checkTodaySummaryUsageAllowed } from "@/lib/supabase/summary-usage";
+import { getKSTNowISO } from "@/lib/utils/kstDate";
 
 const openai = new OpenAI({ apiKey: process.env.GPT_NEWS_API_KEY });
 
@@ -181,7 +182,7 @@ export const POST = async (req: Request) => {
             title: metaTitle,
             article_published_at: metaPublished,
             total_requests: Number(anyByUrl.total_requests ?? 0) + 1,
-            last_requested_at: new Date().toISOString(),
+            last_requested_at: getKSTNowISO(),
           })
           .eq("id", anyByUrl.id);
 
@@ -227,7 +228,7 @@ export const POST = async (req: Request) => {
           content_hash: newHash,
           generator_version: "v1",
           total_requests: 1,
-          last_requested_at: new Date().toISOString(),
+          last_requested_at: getKSTNowISO(),
         })
         .select("id")
         .single();
@@ -361,7 +362,7 @@ export const POST = async (req: Request) => {
           content_hash: hashedText,
           generator_version: "v1",
           total_requests: 0,
-          last_requested_at: new Date().toISOString(),
+          last_requested_at: getKSTNowISO(),
         })
         .select("id")
         .single();
@@ -426,7 +427,7 @@ async function bumpCounters(
     .from("summaries")
     .update({
       total_requests: (current ?? 0) + 1,
-      last_requested_at: new Date().toISOString(),
+      last_requested_at: getKSTNowISO(),
     })
     .eq("id", summaryId);
 }
@@ -447,7 +448,7 @@ async function linkUser(
       source_url: sourceUrl,
       fallback_title: fallbackTitle,
       fallback_site: fallbackSite,
-      last_requested_at: new Date().toISOString(),
+      last_requested_at: getKSTNowISO(),
     },
     { onConflict: "user_id,source_url" }
   );

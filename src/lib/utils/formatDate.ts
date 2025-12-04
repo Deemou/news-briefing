@@ -2,8 +2,8 @@
  * 상대 시간 표시 (예: "방금 전", "3분 전", "2시간 전")
  */
 export function formatRelativeTime(dateStr: string): string {
-  const now = new Date();
   const date = new Date(dateStr);
+  const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
@@ -15,30 +15,36 @@ export function formatRelativeTime(dateStr: string): string {
   if (diffHour < 24) return `${diffHour}시간 전`;
   if (diffDay < 7) return `${diffDay}일 전`;
 
-  // 일주일 이상이면 절대 날짜
   return formatAbsoluteDate(dateStr);
 }
 
 /**
- * 절대 날짜 표시 (예: "2025.10.24")
+ * 절대 날짜 표시 (예: "2025.12.04")
  */
+const kstDateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 export function formatAbsoluteDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}.${month}.${day}`;
+  return kstDateFormatter.format(new Date(dateStr)).replace(/\//g, ".");
 }
 
 /**
- * 시간 포함 날짜 표시 (예: "2025.10.24 10:23")
+ * 시간 포함 날짜 표시 (예: "2025.12.04 15:44")
  */
-export function formatDateTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}.${month}.${day} ${hour}:${minute}`;
+const kstDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+export function formatDateTimeKST(dateStr: string): string {
+  return kstDateTimeFormatter.format(new Date(dateStr));
 }

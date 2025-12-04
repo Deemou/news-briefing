@@ -3,6 +3,7 @@ import { createSbUser, createSbAdmin } from "@/lib/supabase/server";
 import { normalizeProfile } from "@/lib/auth/normalizeProfile";
 import { Provider, ProviderUserMeta } from "@/types/auth";
 import { UserInsert } from "@/types/db";
+import { getKSTNowISO } from "@/lib/utils/kstDate";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
   const provider = user.app_metadata.provider as Provider;
   const meta = user.user_metadata as ProviderUserMeta;
   const norm = normalizeProfile(meta);
-  const now = new Date().toISOString();
+  const now = getKSTNowISO();
 
   // 3) DB 동기화는 서버 admin(비밀키)로만 수행
   const sbAdmin = createSbAdmin();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Briefing } from "@/types/briefing";
 import * as React from "react";
+import { formatDateTimeKST } from "@/lib/utils/formatDate";
 
 export default function BriefingDetailPage({
   params,
@@ -52,7 +53,7 @@ export default function BriefingDetailPage({
           <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             <span>{briefing.site || "출처 불명"}</span>
             <span className="mx-2">•</span>
-            <time>{new Date(briefing.created_at).toLocaleString()}</time>
+            <time>{formatDateTimeKST(briefing.created_at)}</time>
           </div>
           {briefing.source_url && (
             <a

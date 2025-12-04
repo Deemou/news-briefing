@@ -7,10 +7,10 @@ security definer
 set search_path = public
 as $$
 declare
-  v_date date := current_date;
+  v_date date := (current_date at time zone 'Asia/Seoul')::date;
 begin
   update public.summary_usage_daily
     set used_count = used_count + 1,
-        last_used_at = now()
+        last_used_at = (now() at time zone 'Asia/Seoul');
     where user_id = p_user_id and usage_date = v_date;
 end $$;
