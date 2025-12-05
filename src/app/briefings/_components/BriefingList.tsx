@@ -60,11 +60,11 @@ export default function BriefingList() {
     window.location.href = `/briefings/${id}`;
   };
 
-  if (loading) return <div className="text-center text-gray-500">로딩 중…</div>;
+  if (loading) return <div className="text-center">로딩 중…</div>;
   if (err) return <div className="text-center text-red-600">{err}</div>;
   if (briefings.length === 0)
     return (
-      <div className="text-center text-gray-500">
+      <div className="text-center">
         저장된 브리핑이 없습니다.{" "}
         <a className="text-blue-600 hover:underline" href="/">
           요약 만들기

@@ -39,9 +39,7 @@ export function BriefingCard({
 
       {/* 메타 정보 */}
       <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-2">
-        <span className={briefing.source_url ? "" : "text-gray-500 italic"}>
-          {source}
-        </span>
+        <span className={briefing.source_url ? "" : "italic"}>{source}</span>
         <span>•</span>
         <time>{formatRelativeTime(briefing.created_at)}</time>
       </div>
