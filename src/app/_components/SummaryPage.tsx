@@ -5,6 +5,7 @@ import { isValidHttpUrl } from "@/lib/validators/url";
 import Button from "@/components/ui/Button";
 import { SummarizeRequest } from "@/types/summarize";
 import { sanitizeTitle, sanitizeSite } from "@/lib/validators/meta";
+import { MAX_TITLE_LENGTH, MAX_SITE_LENGTH } from "@/lib/validators/meta";
 
 const minLen = 50;
 const maxLen = 4000;
@@ -83,7 +84,7 @@ export default function SummaryPage() {
 
   const onTitleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setTitle(sanitizeTitle(e.target.value) ?? "");
+      setTitle(e.target.value);
       if (error) setError(null);
     },
     [error]
@@ -91,7 +92,7 @@ export default function SummaryPage() {
 
   const onSiteChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSite(sanitizeSite(e.target.value) ?? "");
+      setSite(e.target.value);
       if (error) setError(null);
     },
     [error]
@@ -113,8 +114,8 @@ export default function SummaryPage() {
               mode: "fallback",
               url: url.trim(),
               text: text.trim(),
-              title: title.trim() || undefined,
-              site: site.trim() || undefined,
+              title: sanitizeTitle(title) || undefined,
+              site: sanitizeSite(site) || undefined,
             };
 
         const res = await fetch("/api/summarize", {
@@ -207,10 +208,7 @@ export default function SummaryPage() {
               className="w-full rounded border p-3 outline-none focus:ring"
               aria-describedby="helper counter"
             />
-            <div
-              id="counter"
-              className="text-xs text-gray-600 dark:text-gray-300"
-            >
+            <div id="counter" className="text-xs">
               {tlen} / {maxLen} (최소 {minLen}자 이상)
             </div>
             {/* 선택 메타 */}
@@ -225,7 +223,11 @@ export default function SummaryPage() {
                   onChange={onTitleChange}
                   className="w-full rounded border p-2 outline-none focus:ring mt-2"
                   placeholder="기사 제목이 있는 경우"
+                  maxLength={MAX_TITLE_LENGTH}
                 />
+                <p className="mt-1 text-xs">
+                  {title.length} / {MAX_TITLE_LENGTH}자
+                </p>
               </div>
               <div>
                 <label htmlFor="site" className="block text-sm">
@@ -237,7 +239,11 @@ export default function SummaryPage() {
                   onChange={onSiteChange}
                   className="w-full rounded border p-2 outline-none focus:ring mt-2"
                   placeholder="매체명 또는 출처"
+                  maxLength={MAX_SITE_LENGTH}
                 />
+                <p className="mt-1 text-xs">
+                  {site.length} / {MAX_SITE_LENGTH}자
+                </p>
               </div>
             </div>
           </div>

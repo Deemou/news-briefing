@@ -1,27 +1,31 @@
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
-// 한글/영문/숫자/공백/일부 구두점만 허용
-const WHITELIST = /[^0-9A-Za-z가-힣\s.,·:\-\/()[\]&'"]/g;
+// 위험한 HTML 태그 문자만 제거
+const DANGEROUS_CHARS = /[<>]/g;
+
+export const MAX_TITLE_LENGTH = 120;
+export const MAX_SITE_LENGTH = 50;
 
 export interface SanitizeOptions {
   maxLen: number;
-  allow?: RegExp; // 화이트리스트 보강이 필요할 때 교체 허용
 }
 
-export function sanitizeMetaRaw(
-  input: unknown,
-  { maxLen, allow = WHITELIST }: SanitizeOptions
-) {
+export function sanitizeMetaRaw(input: unknown, { maxLen }: SanitizeOptions) {
   if (typeof input !== "string") return null;
-  let s = input.replace(CONTROL_CHARS, "").replace(/\s+/g, " ").trim();
-  s = s.replace(allow, "");
-  if (!s) return null;
-  return s.slice(0, maxLen);
+
+  const sanitized = input
+    .replace(CONTROL_CHARS, "") // 제어 문자 제거
+    .replace(DANGEROUS_CHARS, "") // < > 제거
+    .replace(/\s+/g, " ") // 연속 공백을 하나로
+    .trim(); // 앞뒤 공백 제거
+
+  if (!sanitized) return null;
+  return sanitized.slice(0, maxLen);
 }
 
 export function sanitizeTitle(input: unknown) {
-  return sanitizeMetaRaw(input, { maxLen: 120 });
+  return sanitizeMetaRaw(input, { maxLen: MAX_TITLE_LENGTH });
 }
 
 export function sanitizeSite(input: unknown) {
-  return sanitizeMetaRaw(input, { maxLen: 50 });
+  return sanitizeMetaRaw(input, { maxLen: MAX_SITE_LENGTH });
 }
