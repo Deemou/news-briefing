@@ -3,34 +3,43 @@ import { createSbUser } from "@/lib/supabase/server";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const sb = createSbUser({ req });
+  const { params } = ctx;
+  const { id } = await params;
+
+  const sbUser = createSbUser({ req });
   const {
     data: { user },
-  } = await sb.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } = await sbUser.auth.getUser();
 
-  const { data: rows, error: readErr } = await sb
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // 1) 해당 링크가 이 유저의 소유인지 + pinned 상태 조회
+  const { data: row, error: readErr } = await sbUser
     .from("user_summaries")
     .select("pinned")
+    .eq("id", id)
     .eq("user_id", user.id)
-    .eq("summary_id", params.id)
-    .limit(1);
+    .single();
 
-  if (readErr || !rows?.length) {
+  if (readErr || !row) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const nextPinned = !rows[0].pinned;
-  const { error: updErr } = await sb
+  const nextPinned = !row.pinned;
+
+  const { error: updErr } = await sbUser
     .from("user_summaries")
     .update({ pinned: nextPinned })
-    .eq("user_id", user.id)
-    .eq("summary_id", params.id);
+    .eq("id", id)
+    .eq("user_id", user.id);
 
-  if (updErr)
+  if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
+  }
+
   return NextResponse.json({ pinned: nextPinned });
 }
